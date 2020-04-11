@@ -1,0 +1,239 @@
+---
+title: "ML Hmwk 1"
+author: "Mina Yuan, Yuting Shan, Yi Hu, Redmond Xia, Yushi Wei"
+date: "03/04/2020"
+output: pdf_document
+---
+
+## Question 1: On ggplot2 and regression planes
+
+```{r Question 1}
+library(ggplot2)
+library(data.table)
+library(DataAnalytics)
+
+data = as.data.table(read.csv("imports-85.csv",stringsAsFactors = F))
+
+head(data)
+str(data)
+data[,price:=as.numeric(price)]
+data[,horsepower:=as.numeric(horsepower)]
+
+#str(data)
+```
+
+# Questions 1 Part 1: 
+Observation from pair-wise.
+horsepower and price has strong positive relationship. 
+
+prices of hatchback and sedan is the lowest.
+prices of convertible and hardtop are higher in general, while sedan could be as expensive as these 2 types.
+
+horsepower of convertible and hardtop are higher in gneral, while hatchback and sedan could be as high as these 2 types sometimes. Wagon is the lowest among the types.
+
+Observation from price and horsepower relationship, by body type
+horsepower and price has strong positive relationship among all types, with sedan, convertible, and hardtop being the strongest. note: convertible and hardtop has significantly less data points.
+
+When log(price), relationship of horsepower and log(price) becomes more similar between all body types
+when price^2, relationship bw horsepower and price^2 shows clearer distinction of stronger positive relaitonship among with body types with price^2, and weaker. 
+
+We also compare the simple model with model including body style as factors, and the resulting p-value of F-stats is sufficiently low. 
+Therefore, the model with body styles is better than the simple model. Body style variable appears relevant for car prices, beyond horsepower. 
+Note that convertible and hardtop have significantly less data than the other body type. 
+
+```{r Questions 1 Part 1}
+# pair-wise relationship
+qplot(y=price,x=horsepower,data=data,col = body.style)+geom_smooth(method='lm',col = I('RED'),se = F,main = 'price vs horsepower')
+qplot(y=price,x=body.style,data=data,geom='boxplot',main = 'price vs body style')
+qplot(y = horsepower,x = body.style,data=data,geom='boxplot',main = 'horsepower vs body style')
+
+
+# price and horsepower relationship, by body type
+qplot(x = horsepower,y = price,data=data,facets = body.style~.,col = I("blue"),main = 'horsepower vs price by body stype') +
+  geom_smooth(method = 'lm',col = I('pink'),se = F)+ theme_bw()
+
+# Transform prices using log and ^2
+qplot(x = horsepower,y = log(price),data=data,facets = body.style~.,col = I("blue"),main='horse power vs log price by body type') +
+  geom_smooth(method = 'lm',col = I('pink'),se = F)+ theme_bw()
+
+qplot(x = horsepower,y = price^2,data=data,facets = body.style~.,col = I("blue"),main = 'horsepower vs price^2 by body type') +
+  geom_smooth(method = 'lm',col = I('pink'),se = F)+ theme_bw()
+
+model1 = lm(price ~ horsepower + as.factor(body.style),data = data)
+model2 = lm(price ~horsepower, data = data)
+anova(model1,model2)
+```
+
+# Question 1 Part 2: 
+Regression of horsepower(x) and price(y):
+Statistically significance positive beta, with relatively small standard error.
+Although horsepower captures price well, but not completely because the residuals has autocorrelations, thus not white noises.
+Residuals display heteroskedasticity based on the p-value in Breusch-Pagen Test. The p-value is smaller than 0.05, thus reject 
+the null where residuals are homoskedasticity. 
+
+```{r Question 1 Part 2}
+#str(data)
+#summary(data)
+
+# my personal idea: explore relationship between engine size and horsepower (dont need to run)
+#data2 = data[!is.na(horsepower) & !is.na(engine.size),c('horsepower','engine.size')]
+#summary(data2)
+
+#reg = lm(horsepower~engine.size,data = data2)
+#lmSumm(reg)
+#acf(reg$residuals)
+#qplot(x = data2$engine.size,y=reg$residuals)+geom_smooth(method='lm')
+
+
+# question ask for: explore relationship between horsepower and price
+data3 = data[!is.na(horsepower) & !is.na(price),c('horsepower','price')]
+#summary(data3)
+
+reg2 = lm(price~horsepower,data = data3)
+lmSumm(reg2)
+acf(reg2$residuals)
+qplot(x = data3$horsepower,y=reg2$residuals,main = 'residuals vs horsepower')+geom_smooth(method='lm')
+qplot(x = reg2$fitted.values,y=reg2$residuals,main = 'residuals vs fitted values')+geom_smooth(method='lm')
+
+```
+
+
+# Question 1 Part 3: 
+From the plot, increase in horsepower impacts city.mpg (fuel efficiency) negatively, which is, a higher horsepower indicates lower fuel efficiency. It displays a non-linear relationship, ie, negative exponential. A better way to regress is transforming x before linear regression.
+The regression demonstrates the same results, with beta of -0.133, statistically significant. This beta is small because horse power and city.mpg are on very different scale, but the beta is still negative. The residuals is not uniformly distributed, therefore this could be a nonlinear relationship.
+```{r Question 1 Part 3}
+#str(data)
+qplot(x = horsepower, y = city.mpg, data = data,main = 'horsepower vs fuel efficiency')
+reg4 = lm(city.mpg~horsepower,data = data)
+qplot(y=reg4$residuals,x=reg4$fitted.values)
+lmSumm(reg4)
+
+#plot(exp(seq(1,-1,-0.001)))
+```
+
+## Question 2 Nonlinear relations
+ 
+A common concern is that the relationship between a predictive variable (X) and the outcome we are trying to predict (Y) is nonlinear. On the surface, this seems to invalidate linear regressions, such as the Fama-MacBeth regression. However, this is not generally the case. For instance, if Y = f(X) + noise, where f(.) is not linear in X, simply define a transformation of X as, generally, Z = a + bf(X). Now, it is clear that Y = a1 + b1*Z, for constants a, a1, b, and b1. In other words, one could include squared values of X in the regression, perhaps max(0,X), etc.
+ 
+We will see this in action for the case of Issuance (lnIssue). This is the average amount of stock issuance in the last 36 months, normalized by market equity. Generally, firms that issue a lot of equity have low returns going forward.
+```{r Question 2 Nonlinear relations}
+library(foreign) # for read.dta()
+q2data = as.data.table(read.dta("StockRetAcct_insample.dta"))
+
+```
+
+# Question 2 Part 1: 
+The result of this make sense because the lowest decile portfolio (least stock issuance), has the highest avg return across years (value weighted by firm within each year), vice versa.
+```{r Question 2 Part 1}
+#summary(q2data)
+
+# assume lnIssue is already lagged by 1 period
+q2data[,lnIssue:=jitter(lnIssue, amount = 0)]
+for (i in 1980:2014){
+  q2data[year == i,
+         lnIssueDecile := cut(q2data[year == i,lnIssue],
+            breaks = quantile(q2data$lnIssue,probs = seq(0,1,0.1),na.rm = T),
+            include.lowest = T, 
+            labels = F)]
+}
+q2data = q2data[!is.na(lnIssueDecile),]
+
+q2data[,ExRet:=exp(lnAnnRet) - exp(lnRf)]
+
+# assume MEwt is already lagged by 1 period, mentioned in class, ExRet is current period
+decile.ret.yr = q2data[,list(vwret=weighted.mean(ExRet, MEwt)),by=list(year,lnIssueDecile)]
+
+setkey(decile.ret.yr,lnIssueDecile,year)
+head(decile.ret.yr)
+
+decil.ret = decile.ret.yr[,list(ewyr.ret = mean(vwret)),by = lnIssueDecile]
+setkey(decil.ret,lnIssueDecile)
+decil.ret 
+
+
+```
+
+# Question 2 Part 2: 
+The decile portfolio is created by the quantile of number of issuance, where decile 1 corresponds to companies have the lowest 10% number of issuance.
+The parttern does not look linear. Although if it's linear, we could get a negative beta in a linear regression of decile vs average return. While portfolio 1 has extremely high return and portfolio 10 has significantly lower return, between decile 2 to 9, the plot almost indicates there's no relationship between the two variables as the points are scatter around its mean evenly. 
+
+```{r Question 2 Part 2}
+
+qplot(x = lnIssueDecile,y = ewyr.ret, data = decil.ret,main = 'Decile Portfolio Avg Excess Return',xlab = 'Decile Portfolio Number',ylab ='Avg Excess Return')
+
+```
+
+
+
+# Question 2 Part 3:
+Fama Macbeth Regression of excess return on transformed issurance variable:
+The mean of risk premium of the issurance var is 0.0001542316, a positive relationship. This could indicate that higher decile have higher expected return. This is opposite of what Question 2 Part 2 shown.  The fama macbeth coefficient suggests us to long the highest decile portfolio (characteristic = 1), don't invest in decile 2-9 portfolios (characteristic = 0), and short the lowerest decile portfolio (characteristic = -1), however, the regression may be insignificant.
+
+
+```{r Question 2 Part 3}
+
+q2data[lnIssueDecile=='1', characteristics := -1]
+q2data[lnIssueDecile=='10',characteristics := 1]
+q2data[lnIssueDecile!= '1' & lnIssueDecile != '10',characteristics := 0]
+
+# regression 1: across year for each firm
+q2data[, reg1 := (lm(ExRet ~characteristics))$coef[2], by = FirmID]
+reg1 = q2data[, list(reg1 = (lm(ExRet ~characteristics))$coef[2]), by = list(FirmID)]
+onefirm = q2data[FirmID == 4326, c('ExRet','characteristics') ]
+out = lm(ExRet~characteristics, data = onefirm)
+lmSumm(out)
+
+# regression 2: across firms for each year
+q2data[,reg2 := (lm(ExRet~reg1))$coef[2],by=year]
+reg2 = q2data[,list(reg2 = (lm(ExRet~reg1))$coef[2]),by=list(year)]
+setkey(reg2,year)
+reg2
+reg2[,mean(reg2)]
+
+```
+
+## Question 3: Double-sorts and functional forms
+
+# Question 3 Part 1:
+```{r Question 3 Part 1}
+for (i in 1980:2014){
+  q2data[year == i,
+         bmDecile := cut(q2data[year == i,lnBM],
+            breaks = quantile(q2data$lnBM,probs = seq(0,1,0.2),na.rm = T),
+            include.lowest = T, 
+            labels = F)]
+}
+
+for (i in 1980:2014){
+  q2data[year == i,
+         sizeDecile := cut(q2data[year == i,lnME],
+            breaks = quantile(q2data$lnME,probs = seq(0,1,0.2),na.rm = T),
+            include.lowest = T, 
+            labels = F)]
+}
+
+head(q2data)
+```
+
+# Question 3 Part 2:
+The assumption I am testing here is \textit{expected returns are linear in the book-to-market ratio as well as the interaction between book-to-market and size. In other words, holding size constant there is a linear relation between expected stock returns and book-to-market.}
+From the plot, I observed a weak linear relationship between b-m ratio and average expected returns. The relationship is stronger for small and medium-small companies. However, the linear relationship for medium, medium-large, and large companies are neutral and slightly negative. Therefore, the assumption of conditional linearity seem to be applicable here. 
+```{r Question 3 Part 2}
+
+q2data = q2data[!is.na(lnIssueDecile) & !is.na(sizeDecile) & !is.na(bmDecile),]
+
+
+dbsorted.ret = q2data[,list(vwret=weighted.mean(ExRet, MEwt)),by=list(year,sizeDecile,bmDecile)]
+
+setkey(dbsorted.ret,sizeDecile,bmDecile,year)
+head(dbsorted.ret)
+
+db.avgret = dbsorted.ret[,list(ewyr.ret = mean(vwret)),by = list(sizeDecile,bmDecile)]
+setkey(db.avgret,sizeDecile,bmDecile)
+head(db.avgret)
+
+qplot(x = bmDecile, y = ewyr.ret,data = db.avgret,facets = sizeDecile~.,col = I('BLUE'),ylab='expected return',main = 'book to market vs average return for each size decile')+geom_smooth(method='lm',col = I('pink'),se=F)
+
+```
+
+
